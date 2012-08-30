@@ -1,0 +1,4 @@
+*.pyc
+build/
+dist/
+python_realtimemagic.egg-info
