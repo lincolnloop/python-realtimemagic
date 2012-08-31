@@ -1,6 +1,5 @@
-from django.conf import settings
 from django.contrib.sessions.models import Session
-from django.contrib.auth.models import User
+from django.contrib.auth.models import User, AnonymousUser
 
 from realtimemagic.auth import Authenticator, AuthenticationError
 
@@ -15,7 +14,7 @@ class DjangoAuthenticator(Authenticator):
             uid = session.get_decoded().get('_auth_user_id')
             return User.objects.get(pk=uid)
         except User.DoesNotExist:
-            raise AuthenticationError(self.error_message)
+            return AnonymousUser()
         except Session.DoesNotExist:
             raise AuthenticationError(self.error_message)
         except Exception, e:

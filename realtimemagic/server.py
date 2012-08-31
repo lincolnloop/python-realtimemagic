@@ -27,22 +27,26 @@ class PubSubConnection(SockJSConnection):
 
     def publish(self, payload):
         channel, message = (i.strip() for i in payload.split(' ', 1))
+        self.authorize(channel)
         self.master.publish(channel, message)
 
-    def subscribe(self, channel):
+    def authorize(self, channel):
         try:
             for authenticator in self.master.authenticators.get(channel, []):
                 authenticator.check(self, channel)
             else:
                 for authenticator in self.master.authenticators.get('default', []):
                     authenticator.check(self, channel)
-
-            subscriptions = self.master.subscriptions
-            if channel not in subscriptions or self not in subscriptions[channel]:
-                subscriptions[channel].append(self)
-                logging.info('Subscribing %s to %s' % (self, channel))  # send control message
         except AuthenticationError, e:
             logging.info(e)  # send control message
+            self.close()
+
+    def subscribe(self, channel):
+        self.authorize(channel)
+        subscriptions = self.master.subscriptions
+        if channel not in subscriptions or self not in subscriptions[channel]:
+            subscriptions[channel].append(self)
+            logging.info('Subscribing %s to %s' % (self, channel))  # send control message
 
     def unsubscribe(self, channel):
         subscriptions = self.master.subscriptions

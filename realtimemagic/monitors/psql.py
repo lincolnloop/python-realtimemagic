@@ -4,6 +4,7 @@ import psycopg2
 from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
 from eventlet.hubs import trampoline
 
+
 class PsqlMonitor(object):
     def __init__(self, dsn):
         self.dsn = dsn
@@ -24,7 +25,7 @@ class PsqlMonitor(object):
                         f(n, pubsub)
             return inner
         return wrapper
-        
+
     def notify(self, channel, message):
         cnn = psycopg2.connect(self.dsn)
         cnn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
