@@ -1,7 +1,7 @@
 import functools
 
 import psycopg2
-from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
+from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT, adapt
 from eventlet.hubs import trampoline
 
 
@@ -30,6 +30,6 @@ class PsqlMonitor(object):
         cnn = psycopg2.connect(self.dsn)
         cnn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
         cur = cnn.cursor()
-        cur.execute("NOTIFY %s, '%s';" % (channel, message))
+        cur.execute("NOTIFY %s, %s;" % (channel, adapt(message)))
         cur.close()
         cnn.close()
