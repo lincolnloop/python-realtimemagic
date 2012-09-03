@@ -20,7 +20,8 @@ class DjangoAuthenticator(Authenticator):
             return AnonymousUser()
         except Session.DoesNotExist:
             logging.error('Session does not exist')
-            raise AuthenticationError(self.error_message)
+            logging.info('Subscribing as AnonymousUser')
+            return AnonymousUser()
         except Exception, e:
             logging.error('An error occured. %s' % e)
             raise AuthenticationError('An error occured. %s' % e)
