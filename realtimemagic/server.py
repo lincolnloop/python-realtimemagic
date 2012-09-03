@@ -40,6 +40,8 @@ class PubSubConnection(SockJSConnection):
         except AuthenticationError, e:
             logging.info(e)  # send control message
             self.close()
+        except Exception, e:
+            logging.error(e)
 
     def subscribe(self, channel):
         self.authorize(channel)
