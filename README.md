@@ -53,6 +53,7 @@ if __name__ == '__main__':
  * Add the possibility of opening a connection (registering receivers for messages)
  * Add control messages on pub/sub/close/etc
  * Add basic configuration (managed in __init__)
+   - Make the endpoint configurable (instead of /pubsub)
  * Add control message to prevent timeouts (relevant when behind nginx)
  * Add signals on channel created/destroyed
 
