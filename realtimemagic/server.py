@@ -79,7 +79,7 @@ class RealTimeMagic(object):
     def __init__(self, *args, **kwargs):
         # Use a better datastructure for subscriptions
         # Consider a self-locking dict
-        self.subscriptions = defaultdict(list)
+        self.subscriptions = defaultdict(list)  # consider spawning threads
         # Authenticators can be a normal dict
         self.authenticators = defaultdict(list)
         self.local = kwargs.get('local', False)
@@ -115,5 +115,6 @@ class RealTimeMagic(object):
         Should we update this to use thoonk or another queue? should it be
         threaded?
         """
+        #Consider using a thread pool to send multiple messages in parallel.
         for ws in self.subscriptions[channel]:
             ws.send(message)
