@@ -49,6 +49,7 @@ if __name__ == '__main__':
  * Improve authentication
    - split checks into check_channel(self, conn, channel) and check_message(self, conn, message)
  * Add a JS API
+ * Change the protocol to something less fragile (like json)
  * Add the possibility of opening a connection (registering receivers for messages)
  * Add control messages on pub/sub/close/etc
  * Add basic configuration (managed in __init__)
