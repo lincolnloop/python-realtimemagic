@@ -1,6 +1,7 @@
 import sys
 import threading
 import logging
+import json
 
 from collections import defaultdict
 
@@ -26,11 +27,12 @@ class PubSubConnection(SockJSConnection):
             self.cookies = dict([payload.split('=', 1)])
 
     def publish(self, payload):
-        channel, message = (i.strip() for i in payload.split(' ', 1))
-        self.authorize(channel)
-        self.master.publish(channel, message)
+        logging.info('Publishing %s' % payload)
+        self.authorize(payload['channel'])
+        self.master.publish(payload['channel'], payload['message'])
 
     def authorize(self, channel):
+        #This will probably block the thread. Consider add_handler.
         try:
             for authenticator in self.master.authenticators.get(channel, []):
                 authenticator.check(self, channel)
@@ -38,6 +40,7 @@ class PubSubConnection(SockJSConnection):
                 for authenticator in self.master.authenticators.get('default', []):
                     authenticator.check(self, channel)
         except AuthenticationError, e:
+            self.send({'controlMessage': True, 'content': e})
             logging.info(e)  # send control message
             self.close()
         except Exception, e:
@@ -49,19 +52,27 @@ class PubSubConnection(SockJSConnection):
         if channel not in subscriptions or self not in subscriptions[channel]:
             subscriptions[channel].append(self)
             logging.info('Subscribing %s to %s' % (self, channel))  # send control message
+        self.send({'controlMessage': True, 'content': 'Subscribed to %s' % channel})
 
     def unsubscribe(self, channel):
         subscriptions = self.master.subscriptions
         logging.info('Unsubscribing %s from channel %s' % (self, channel))  # send control message
         if self in subscriptions[channel]:
             subscriptions[channel].remove(self)
+        self.send({'controlMessage': True, 'content': 'Unsubscribed from %s' % channel})
 
     def on_message(self, message):
         logging.info('Received message %s' % message)
         try:
-            command, payload = message.split(';', 1)
+            obj = json.loads(message)
+        except ValueError, e:
+            logging.error(e)
+            return  # Handle default socket behaviour via receivers.
+
+        try:
+            command, payload = obj['action'], obj['payload']
             if command in self.VALID_COMMANDS:
-                getattr(self, command)(payload.strip())
+                getattr(self, command)(payload)
         except Exception, e:
             logging.error(e)
 
