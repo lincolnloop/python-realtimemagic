@@ -127,5 +127,5 @@ class RealTimeMagic(object):
         threaded?
         """
         #Consider using a thread pool to send multiple messages in parallel.
-        for ws in self.subscriptions[channel]:
+        for ws in self.subscriptions[str(channel)]:
             ws.send(message)
