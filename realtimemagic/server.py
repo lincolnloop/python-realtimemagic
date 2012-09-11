@@ -94,6 +94,7 @@ class RealTimeMagic(object):
         # Authenticators can be a normal dict
         self.authenticators = defaultdict(list)
         self.local = kwargs.get('local', False)
+        self.ioloop = ioloop.IOLoop.instance()
 
     def start(self):
         PubSubRouter = SockJSRouter(PubSubConnection, '/pubsub',
@@ -105,7 +106,7 @@ class RealTimeMagic(object):
             t = threading.Thread(target=monitor, args=(self,))
             t.daemon = True
             t.start()
-        t = threading.Thread(target=ioloop.IOLoop.instance().start)
+        t = threading.Thread(target=self.ioloop.start)
         t.daemon = True
         t.start()
         logging.info('Realtime listener started.')
@@ -121,11 +122,20 @@ class RealTimeMagic(object):
             print '\nExiting...'
             sys.exit(1)
 
+    def slow_stuff(self, num):
+        import psycopg2
+        cnn = psycopg2.connect(dsn='dbname=snarl')
+        cur = cnn.cursor()
+        cur.execute("SELECT pg_sleep(10);")
+        cur.close()
+        cnn.close()
+        for ws in self.subscriptions[str('1')]:
+            ws.send('Done!')
+
     def publish(self, channel, message):
         """
         Should we update this to use thoonk or another queue? should it be
         threaded?
         """
-        #Consider using a thread pool to send multiple messages in parallel.
         for ws in self.subscriptions[str(channel)]:
             ws.send(message)
