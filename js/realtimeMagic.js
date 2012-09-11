@@ -7,10 +7,10 @@ realtimeMagic = {
 				return this.sock.send(JSON.stringify({action:action, payload:payload}));
 			},
 			subscribe: function(channel){
-				return this.execute("subscribe", channel);
+				return this.execute("subscribe", {'channel': channel});
 			},
 			unsubscribe: function(channel){
-				return this.execute("unsubscribe", channel);
+				return this.execute("unsubscribe", {'channel': channel});
 			},
 			publish: function(channel, message){
 				return this.execute("publish", {channel:channel, message:message});

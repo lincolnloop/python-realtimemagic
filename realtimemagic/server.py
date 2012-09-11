@@ -47,7 +47,8 @@ class PubSubConnection(SockJSConnection):
         except Exception, e:
             logging.error(e)
 
-    def subscribe(self, channel):
+    def subscribe(self, payload):
+        channel = payload['channel']
         self.authorize(channel)
         subscriptions = self.master.subscriptions
         if channel not in subscriptions or self not in subscriptions[channel]:
@@ -55,7 +56,8 @@ class PubSubConnection(SockJSConnection):
             logging.info('Subscribing %s to %s' % (self, channel))  # send control message
         self.send({'controlMessage': True, 'content': 'Subscribed to %s' % channel})
 
-    def unsubscribe(self, channel):
+    def unsubscribe(self, payload):
+        channel = payload['channel']
         subscriptions = self.master.subscriptions
         logging.info('Unsubscribing %s from channel %s' % (self, channel))  # send control message
         if self in subscriptions[channel]:
