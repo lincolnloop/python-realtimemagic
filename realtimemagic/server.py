@@ -12,6 +12,7 @@ import tornado.options
 tornado.options.parse_command_line()
 
 from auth import AuthenticationError
+from concurrency import ThreadPool
 
 
 class PubSubConnection(SockJSConnection):
@@ -29,7 +30,7 @@ class PubSubConnection(SockJSConnection):
     def publish(self, payload):
         logging.info('Publishing %s' % payload)
         self.authorize(payload['channel'])
-        self.master.publish(payload['channel'], payload['message'])
+        self.master.publish(payload['channel'], payload['message'], async=False)
 
     def authorize(self, channel):
         #This will probably block the thread. Consider add_handler.
@@ -72,7 +73,10 @@ class PubSubConnection(SockJSConnection):
         try:
             command, payload = obj['action'], obj['payload']
             if command in self.VALID_COMMANDS:
-                getattr(self, command)(payload)
+                if self.master.async:
+                    self.master.workers.add_task(getattr(self, command), payload)
+                else:
+                    getattr(self, command)(payload)
         except Exception, e:
             logging.error(e)
 
@@ -84,6 +88,11 @@ class PubSubConnection(SockJSConnection):
                 subscriptions[channel].remove(self)
 
 
+def chunks(l, n):
+    "Splits a list into <n-sized lists"
+    return [l[i:i + n] for i in range(0, len(l), n)]
+
+
 class RealTimeMagic(object):
     monitors = []
 
@@ -93,8 +102,12 @@ class RealTimeMagic(object):
         self.subscriptions = defaultdict(list)  # consider spawning threads
         # Authenticators can be a normal dict
         self.authenticators = defaultdict(list)
-        self.local = kwargs.get('local', False)
         self.ioloop = ioloop.IOLoop.instance()
+
+        self.local = kwargs.get('local', False)
+        self.async = kwargs.get('async', True)
+        if self.async:
+            self.workers = ThreadPool(kwargs.get('threads', 20))
 
     def start(self):
         PubSubRouter = SockJSRouter(PubSubConnection, '/pubsub',
@@ -123,19 +136,28 @@ class RealTimeMagic(object):
             sys.exit(1)
 
     def slow_stuff(self, num):
+        print 'Executing a slow query...'
         import psycopg2
         cnn = psycopg2.connect(dsn='dbname=snarl')
         cur = cnn.cursor()
-        cur.execute("SELECT pg_sleep(10);")
+        cur.execute("SELECT pg_sleep(%s);" % num)
         cur.close()
         cnn.close()
-        for ws in self.subscriptions[str('1')]:
-            ws.send('Done!')
 
-    def publish(self, channel, message):
-        """
-        Should we update this to use thoonk or another queue? should it be
-        threaded?
-        """
-        for ws in self.subscriptions[str(channel)]:
+    def _publish(self, connections, message):
+        #self.slow_stuff(10)
+        for ws in connections:
             ws.send(message)
+
+    def publish(self, channel, message, async=True):
+        """
+        This is already being handled asynchronously when comming from the
+        connection.
+        """
+        if not async:
+            self._publish(self.subscriptions[str(channel)], message)
+        else:
+            # # This is not very good as it fills the queue faster
+            #for cluster in chunks(self.subscriptions[str(channel)], 20):
+            #    self.workers.add_task(getattr(self, '_publish'), cluster, message)
+            self.workers.add_task(getattr(self, '_publish'), self.subscriptions[str(channel)], message)
