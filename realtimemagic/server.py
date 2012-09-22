@@ -64,21 +64,37 @@ class PubSubConnection(SockJSConnection):
             subscriptions[channel].remove(self)
         self.send({'controlMessage': True, 'content': 'Unsubscribed from %s' % channel})
 
-    def on_message(self, message):
+    def handle_receivers(self, message):
+        # This could be improved by moving the loop into the thread instead of
+        # each receiver
+        logging.info('Handling through receivers')
+        for receiver in self.master.receivers:
+            if self.master.async:
+                self.master.workers.add_task(receiver, self, message)
+            else:
+                receiver(self, message)
+
+    def on_message(self, message):  # Needs Refactor
         logging.info('Received message %s' % message)
+        obj = None
         try:
             obj = json.loads(message)
         except ValueError, e:
             logging.error(e)
-            return  # Handle default socket behaviour via receivers.
+
+        if not obj or not isinstance(obj, dict):
+            self.handle_receivers(message)
+            return
 
         try:
-            command, payload = obj['action'], obj['payload']
-            if command in self.VALID_COMMANDS:
+            command, payload = obj.get('action', None), obj.get('payload', None)
+            if command and command in self.VALID_COMMANDS:
                 if self.master.async:
                     self.master.workers.add_task(getattr(self, command), payload)
                 else:
                     getattr(self, command)(payload)
+            else:
+                self.handle_receivers(message)
         except Exception, e:
             logging.error(e)
 
@@ -104,18 +120,21 @@ class RealTimeMagic(object):
         self.subscriptions = defaultdict(list)  # consider spawning threads
         # Authenticators can be a normal dict
         self.authenticators = defaultdict(list)
+        # Functions to handle an incomming message
+        self.receivers = []
+
         self.ioloop = ioloop.IOLoop.instance()
 
         self.local = kwargs.get('local', False)
         self.async = kwargs.get('async', True)
         if self.async:
-            self.workers = ThreadPool(kwargs.get('threads', 20))
+            self.workers = ThreadPool(kwargs.get('threads', 32))
 
     def start(self):
-        PubSubRouter = SockJSRouter(PubSubConnection, '/pubsub',
+        self.router = SockJSRouter(PubSubConnection, '/pubsub',
             user_settings={'master': self})
 
-        app = web.Application(PubSubRouter.urls)
+        app = web.Application(self.router.urls)
         app.listen(9000)
         for monitor in self.monitors:
             t = threading.Thread(target=monitor, args=(self,))
@@ -148,8 +167,10 @@ class RealTimeMagic(object):
 
     def _publish(self, connections, message):
         #self.slow_stuff(10)
-        for ws in connections:
-            ws.send(message)
+        logging.info('Broadcasting message...')
+        self.router.broadcast(connections, message)
+        #for ws in connections:
+        #    ws.send(message)
 
     def publish(self, channel, message, async=True):
         """

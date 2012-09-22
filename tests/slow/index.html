@@ -1,0 +1,37 @@
+<html>
+	<body>
+		<ul id="results">
+
+		</ul>
+	</body>
+
+	<script src="./js/sockjs-0.3.min.js"></script>
+	<script src="./js/realtimeMagic.js"></script>
+	<script>
+	report = function(text){
+		document.getElementById("results").innerHTML += '<li>'+text+'</li>'
+	}
+	</script>
+
+
+	<script>
+	var client = new realtimeMagic.Client('http://localhost:9000/pubsub/');
+	client.onopen = function() {
+		console.log('open');
+		client.subscribe('echo');
+
+		//Send three mesages to the slow echo channel
+		client.send('1->'+new Date());
+		client.send('2->'+new Date());
+		client.send('3->'+new Date());
+	};
+	client.onmessage = function(message) {
+		console.log(message)
+		report('received: ' + message + 'on '+ new Date());
+
+	};
+	client.onclose = function() {
+		console.log('close');
+	};
+	</script>
+</html>
