@@ -67,7 +67,7 @@ class PubSubConnection(SockJSConnection):
     def handle_receivers(self, message):
         # This could be improved by moving the loop into the thread instead of
         # each receiver
-        logging.info('Handling through receivers')
+        # logging.info('Handling through receivers')
         for receiver in self.master.receivers:
             if self.master.async:
                 self.master.workers.add_task(receiver, self, message)
@@ -80,7 +80,7 @@ class PubSubConnection(SockJSConnection):
         try:
             obj = json.loads(message)
         except ValueError, e:
-            logging.error(e)
+            pass  # logging.error(e)
 
         if not obj or not isinstance(obj, dict):
             self.handle_receivers(message)
@@ -97,6 +97,13 @@ class PubSubConnection(SockJSConnection):
                 self.handle_receivers(message)
         except Exception, e:
             logging.error(e)
+
+    def on_open(self, conn_info):
+        for opening in self.master.openings:
+            if self.master.async:
+                self.master.workers.add_task(opening, self, conn_info)
+            else:
+                opening(self, conn_info)
 
     def on_close(self):
         logging.info('Unsubscribing %s' % self)
@@ -121,14 +128,16 @@ class RealTimeMagic(object):
         # Authenticators can be a normal dict
         self.authenticators = defaultdict(list)
         # Functions to handle an incomming message
+        self.openings = []
         self.receivers = []
+        self.closings = []
 
         self.ioloop = ioloop.IOLoop.instance()
 
         self.local = kwargs.get('local', False)
         self.async = kwargs.get('async', True)
         if self.async:
-            self.workers = ThreadPool(kwargs.get('threads', 32))
+            self.workers = ThreadPool(kwargs.get('threads', 64))
 
     def start(self):
         self.router = SockJSRouter(PubSubConnection, '/pubsub',
@@ -140,6 +149,7 @@ class RealTimeMagic(object):
             t = threading.Thread(target=monitor, args=(self,))
             t.daemon = True
             t.start()
+
         t = threading.Thread(target=self.ioloop.start)
         t.daemon = True
         t.start()
@@ -172,12 +182,12 @@ class RealTimeMagic(object):
         #for ws in connections:
         #    ws.send(message)
 
-    def publish(self, channel, message, async=True):
+    def publish(self, channel, message):
         """
         This is already being handled asynchronously when comming from the
         connection.
         """
-        if not async:
+        if not self.async:
             self._publish(self.subscriptions[str(channel)], message)
         else:
             # # This is not very good as it fills the queue faster

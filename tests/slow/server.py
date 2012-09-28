@@ -1,5 +1,4 @@
 import logging
-import json
 from realtimemagic import RealTimeMagic
 
 #from realtimemagic.monitors.psql import PsqlMonitor
