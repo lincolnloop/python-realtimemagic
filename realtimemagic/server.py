@@ -30,7 +30,12 @@ class PubSubConnection(SockJSConnection):
     def publish(self, payload):
         logging.info('Publishing %s' % payload)
         self.authorize(payload['channel'])
-        self.master.publish(payload['channel'], payload['message'], async=False)
+        # We need to be able to hook things here.
+        cont = True
+        for trap in self.master.push_traps:
+            cont = cont and trap(self, payload['channel'], payload['message'])
+        if cont:
+            self.master.publish(payload['channel'], payload['message'], async=False)
 
     def authorize(self, channel):
         #This will probably block the thread. Consider add_handler.
@@ -130,6 +135,7 @@ class RealTimeMagic(object):
         # Functions to handle an incomming message
         self.openings = []
         self.receivers = []
+        self.push_traps = []
         self.closings = []
 
         self.ioloop = ioloop.IOLoop.instance()
@@ -182,15 +188,12 @@ class RealTimeMagic(object):
         #for ws in connections:
         #    ws.send(message)
 
-    def publish(self, channel, message):
+    def publish(self, channel, message, async=True):
         """
         This is already being handled asynchronously when comming from the
         connection.
         """
-        if not self.async:
-            self._publish(self.subscriptions[str(channel)], message)
-        else:
-            # # This is not very good as it fills the queue faster
-            #for cluster in chunks(self.subscriptions[str(channel)], 20):
-            #    self.workers.add_task(getattr(self, '_publish'), cluster, message)
+        if self.async and async:
             self.workers.add_task(getattr(self, '_publish'), self.subscriptions[str(channel)], message)
+        else:
+            self._publish(self.subscriptions[str(channel)], message)
