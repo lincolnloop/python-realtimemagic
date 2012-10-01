@@ -113,7 +113,7 @@ information when needed.
 
 Typically you would wait on information added to a queue like
 redis. Realtime magic provides a postgres monitor. A redis one is
-comming.
+coming.
 
 ```
 from realtimemagic.monitors.psql import PsqlMonitor
